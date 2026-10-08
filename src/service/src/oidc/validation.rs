@@ -252,18 +252,22 @@ pub async fn validate_and_refresh_token(
         }
     };
     if let Some(source) = pending_refresh {
-        let replacement = ts.refresh_token.as_deref().ok_or_else(|| {
-            ErrorResponse::new(ErrorResponseType::Internal, "Missing rotated refresh token")
-        })?;
-        let replacement_id = replacement
-            .len()
-            .checked_sub(REFRESH_TOKEN_VALIDATION_LEN)
-            .and_then(|start| replacement.get(start..))
-            .ok_or_else(|| {
-                ErrorResponse::new(ErrorResponseType::Internal, "Invalid rotated refresh token")
-            })?;
-        // Keep the source until its replacement exists, so logout fences publication.
-        source.finish_rotation(replacement_id).await?;
+        if let Some(replacement) = ts.refresh_token.as_deref() {
+            let replacement_id = replacement
+                .len()
+                .checked_sub(REFRESH_TOKEN_VALIDATION_LEN)
+                .and_then(|start| replacement.get(start..))
+                .ok_or_else(|| {
+                    ErrorResponse::new(ErrorResponseType::Internal, "Invalid rotated refresh token")
+                })?;
+            // Keep the source until its replacement exists, so logout fences publication.
+            source.finish_rotation(replacement_id).await?;
+        } else {
+            // No refresh token is issued once the access token lasts until the client's
+            // `refresh_max_age`. The source is still consumed. If logout or another refresh
+            // got there first, this fails and the new tokens are never returned.
+            source.delete_checked().await?;
+        }
     }
 
     if RauthyConfig::get().vars.events.generate_token_issued {

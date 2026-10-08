@@ -1,4 +1,7 @@
-use crate::common::{PASSWORD, USERNAME, decode_claims, get_auth_headers, get_backend_url};
+use crate::common::{
+    PASSWORD, USERNAME, decode_claims, get_auth_headers, get_backend_url,
+    session_headers_for_client,
+};
 use chrono::Utc;
 use pretty_assertions::assert_eq;
 use rauthy_api_types::clients::{
@@ -14,16 +17,21 @@ mod common;
 
 const ID: &str = "refresh_max_age_test";
 const MAX_AGE: i32 = 60;
+const REDIRECT_URI: &str = "http://localhost/callback";
 
 fn update_req(refresh_max_age: Option<i32>) -> UpdateClientRequest {
     UpdateClientRequest {
         name: Some("Refresh Max Age Test".to_string()),
         confidential: true,
-        redirect_uris: vec!["http://localhost/callback".to_string()],
+        redirect_uris: vec![REDIRECT_URI.to_string()],
         post_logout_redirect_uris: None,
         allowed_origins: None,
         enabled: true,
-        flows_enabled: vec![GrantType::Password, GrantType::RefreshToken],
+        flows_enabled: vec![
+            GrantType::AuthorizationCode,
+            GrantType::Password,
+            GrantType::RefreshToken,
+        ],
         access_token_alg: JwkKeyPairAlg::EdDSA,
         id_token_alg: JwkKeyPairAlg::EdDSA,
         auth_code_lifetime: 60,
@@ -97,7 +105,7 @@ async fn test_refresh_max_age() -> Result<(), Box<dyn Error>> {
             secret: None,
             name: Some("Refresh Max Age Test".to_string()),
             confidential: true,
-            redirect_uris: vec!["http://localhost/callback".to_string()],
+            redirect_uris: vec![REDIRECT_URI.to_string()],
             post_logout_redirect_uris: None,
         })
         .send()
@@ -164,6 +172,27 @@ async fn test_refresh_max_age() -> Result<(), Box<dyn Error>> {
     let rt_claims = decode_claims(&ts.refresh_token.expect("a refresh token"));
     assert_eq!(rt_claims["auth_time"].as_i64().unwrap(), auth_time);
     assert!(rt_claims["exp"].as_i64().unwrap() <= until);
+
+    // A session-bound refresh token (authorization code flow): a refresh in the last access
+    // token lifetime before the max age returns no new refresh token and consumes the old one.
+    let (_, ts) = session_headers_for_client(ID, Some(&secret), REDIRECT_URI).await;
+    let id_claims = decode_claims(ts.id_token.as_deref().expect("an ID token"));
+    assert!(id_claims["sid"].is_string(), "{id_claims}");
+    let rt = ts.refresh_token.expect("a refresh token");
+    let rt_claims = decode_claims(&rt);
+    let until = rt_claims["auth_time"].as_i64().unwrap() + i64::from(MAX_AGE);
+    let wait = until - 10 + 2 - Utc::now().timestamp();
+    if wait > 0 {
+        time::sleep(Duration::from_secs(wait as u64)).await;
+    }
+    let res = refresh(&http, &secret, &rt).await?;
+    assert_eq!(res.status(), 200);
+    let ts = res.json::<TokenSet>().await?;
+    assert!(ts.refresh_token.is_none());
+    assert!(ts.expires_in < 10, "{}", ts.expires_in);
+    assert!(decode_claims(&ts.access_token)["exp"].as_i64().unwrap() <= until);
+    let res = refresh(&http, &secret, &rt).await?;
+    assert!(!res.status().is_success());
 
     // Once the max age has passed, the refresh token from before is rejected, although its
     // own `exp` is still days away.
