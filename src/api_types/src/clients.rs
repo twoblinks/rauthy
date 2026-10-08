@@ -247,7 +247,8 @@ pub struct UpdateClientRequest {
     pub default_aud: Option<Vec<String>>,
     /// Maximum age in seconds of a refresh token chain, measured from the `auth_time` of the
     /// login. A refresh after that is rejected with `invalid_grant`, and no token issued for
-    /// this client expires later. Unset keeps the sliding refresh token lifetime.
+    /// this client on a login or refresh expires later. Token exchange is not limited by it.
+    /// Unset keeps the sliding refresh token lifetime.
     ///
     /// Validation: `60 <= refresh_max_age <= 31536000`
     #[serde(default)]

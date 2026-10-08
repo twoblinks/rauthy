@@ -41,6 +41,15 @@ from the client that owns the original token, with a fresh exchange on top. The 
 not supported yet.
 ```
 
+```admonish warning
+An exchanged token lives for the full `access_token_lifetime` of the exchanging client, counted
+from the exchange. It is not capped by the `subject_token`'s expiry or by the
+[Refresh Token Max Age](refresh_max_age.md) of the original client, and it can be exchanged again.
+A client with `token_exchange` enabled can therefore keep access for a user going indefinitely,
+until the user is disabled or expired or their tokens are revoked. Exchanged tokens are not bound
+to a session, so a logout of a single session does not revoke them.
+```
+
 ## Per-client configuration
 
 The exchange is **deny by default** and needs two things configured on the exchanging client, in the

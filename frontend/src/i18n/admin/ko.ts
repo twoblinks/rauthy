@@ -40,7 +40,7 @@ export let I18nAdminKo: I18nAdmin = {
         defaultAud: '기본 대상(Audience)',
         descAllowedResources: `이 클라이언트가 요청할 수 있는 선택적 RFC 8707 리소스 인디케이터입니다. 목록이 비어 있으면 모든 'resource' 요청 파라미터를 'invalid_target'으로 거부합니다.`,
         descDefaultAud: `'resource' 요청 파라미터와 무관하게 이 클라이언트의 토큰에 항상 추가되는 대상(audience)입니다.`,
-        descRefreshMaxAge: `선택적인 로그인 최대 유지 시간(초)입니다. 사용자가 로그인한 후 이 시간이 지나면 리프레시 토큰이 더 이상 작동하지 않으며, 어떤 토큰도 이 시간을 넘어 유효하지 않습니다. 비워 두면 리프레시 토큰의 슬라이딩 수명이 유지됩니다.`,
+        descRefreshMaxAge: `선택적인 로그인 최대 유지 시간(초)입니다. 사용자가 로그인한 후 이 시간이 지나면 리프레시 토큰이 더 이상 작동하지 않으며, 로그인 또는 갱신으로 발급된 어떤 토큰도 이 시간을 넘어 유효하지 않습니다. 토큰 교환으로 발급된 토큰은 제한되지 않습니다. 비워 두면 리프레시 토큰의 슬라이딩 수명이 유지됩니다.`,
         backchannelLogout: 'If this client supports {{ OIDC_BCL }}, you can provide the URI here.',
         branding: {
             descHsl: `HSL 값으로 입력해야 합니다. 기본 색상만 제공하면 알파 채널 및 기타 값은

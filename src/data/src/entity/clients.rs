@@ -100,7 +100,8 @@ pub struct Client {
     pub default_aud: Option<String>,
     /// Maximum age in seconds of a refresh token chain, measured from the `auth_time` of the
     /// login it started with. A refresh after that is rejected, and no token issued for this
-    /// client expires later. `None` keeps the sliding refresh token lifetime.
+    /// client on a login or refresh expires later. Token exchange is not limited by it.
+    /// `None` keeps the sliding refresh token lifetime.
     pub refresh_max_age: Option<i32>,
 }
 

@@ -9,9 +9,13 @@
 Clients have a new, optional `refresh_max_age` (seconds, 60 to 1 year). Refresh tokens normally have
 a sliding lifetime, so a client that keeps refreshing stays logged in forever. With a
 `refresh_max_age`, a refresh is rejected with `invalid_grant` once the login, measured from its
-`auth_time`, is older than that, and no token issued for this client expires later. This gives an
-absolute limit for refresh tokens, e.g. for CLI tools that keep a refresh token on a device. It can
-be set in the Admin UI or via the clients API and is unset by default.
+`auth_time`, is older than that, and no token issued for this client on a login or refresh expires
+later. This gives an absolute limit for refresh tokens, e.g. for CLI tools that keep a refresh token
+on a device. It can be set in the Admin UI or via the clients API and is unset by default.
+
+Token Exchange is not limited by it: an exchanged access token lives for the full
+`access_token_lifetime` of the exchanging client and can be exchanged again, so a client with
+`token_exchange` enabled can keep access going beyond the `refresh_max_age`.
 
 Token responses now report the actual access token lifetime in `expires_in`, which may be shorter
 than the client's `access_token_lifetime` when it is capped by a `refresh_max_age` or the user's
