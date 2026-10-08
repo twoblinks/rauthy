@@ -43,6 +43,7 @@ export let I18nAdminNb: I18nAdmin = {
         defaultAud: 'Standard-mottakere (aud)',
         descAllowedResources: `Valgfrie RFC 8707 ressursindikatorer denne klienten kan be om. En tom liste avviser enhver 'resource'-parameter med 'invalid_target'.`,
         descDefaultAud: `Mottakere (aud) som alltid legges til i denne klientens tokens, uavhengig av en 'resource'-parameter.`,
+        descRefreshMaxAge: `Valgfri maksimal alder for en innlogging i sekunder. Refresh tokens slutter å virke så lenge etter at brukeren logget inn, og ingen token fra en innlogging eller refresh varer lenger. Tokens fra en token exchange begrenses ikke. Tom beholder den glidende levetiden for refresh tokens.`,
         backchannelLogout: 'Hvis denne klienten støtter {{ OIDC_BCL }}, kan URIen angis her.',
         branding: {
             descHsl: `Fargene må angis som HSL. Her defineres kun basisfargen.

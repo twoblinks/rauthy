@@ -75,6 +75,7 @@ async fn admin_update_client(
         claims_at_root: c.claims_at_root,
         allowed_resources: c.allowed_resources,
         default_aud: c.default_aud,
+        refresh_max_age: c.refresh_max_age,
         scim: c.scim,
     };
     modify(&mut req);

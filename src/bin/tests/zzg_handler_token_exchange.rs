@@ -38,6 +38,7 @@ fn base_update(flows: Vec<GrantType>) -> UpdateClientRequest {
         claims_at_root: false,
         allowed_resources: Some(vec![TARGET.to_string()]),
         default_aud: None,
+        refresh_max_age: None,
         scim: None,
     }
 }

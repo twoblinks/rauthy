@@ -245,6 +245,15 @@ pub struct UpdateClientRequest {
     /// Validation: `Vec<^[a-zA-Z0-9,.:/_\\-&?=~!$'()*+%@]+$>`
     #[validate(custom(function = "validate_vec_resource"))]
     pub default_aud: Option<Vec<String>>,
+    /// Maximum age in seconds of a refresh token chain, measured from the `auth_time` of the
+    /// login. A refresh after that is rejected with `invalid_grant`, and no token issued for
+    /// this client on a login or refresh expires later. Token exchange is not limited by it.
+    /// Unset keeps the sliding refresh token lifetime.
+    ///
+    /// Validation: `60 <= refresh_max_age <= 31536000`
+    #[serde(default)]
+    #[validate(range(min = 60, max = 31536000))]
+    pub refresh_max_age: Option<i32>,
     #[validate(nested)]
     pub scim: Option<ScimClientRequestResponse>,
 }
@@ -324,6 +333,8 @@ pub struct ClientResponse {
     pub allowed_resources: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_aud: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_max_age: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scim: Option<ScimClientRequestResponse>,
 }

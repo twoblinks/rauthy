@@ -44,6 +44,7 @@ export let I18nAdminNl: I18nAdmin = {
         defaultAud: 'Standaard audiences',
         descAllowedResources: `Optionele RFC 8707 resource-indicatoren die deze client mag opvragen. Een lege lijst weigert elke 'resource'-parameter met 'invalid_target'.`,
         descDefaultAud: `Audiences die altijd aan de tokens van deze client worden toegevoegd, onafhankelijk van een 'resource'-parameter.`,
+        descRefreshMaxAge: `Optionele maximale leeftijd van een login in seconden. Refresh tokens werken zo lang na het inloggen niet meer, en geen enkel token uit een login of refresh blijft langer geldig. Tokens uit een token exchange worden niet beperkt. Leeg behoudt de glijdende levensduur van refresh tokens.`,
         backchannelLogout:
             'Als deze client {{ OIDC_BCL }} ondersteunt, kunt u de URI hier opgeven.',
         branding: {
