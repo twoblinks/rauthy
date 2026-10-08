@@ -73,6 +73,7 @@ pub async fn update_client(
         .default_aud
         .map(|a| a.join(","))
         .filter(|a| !a.is_empty());
+    client.refresh_max_age = client_req.refresh_max_age;
 
     client.save().await?;
 

@@ -45,6 +45,7 @@ export let I18nAdminFr: I18nAdmin = {
         defaultAud: 'Audiences par défaut',
         descAllowedResources: `Indicateurs de ressources RFC 8707 optionnels que ce client peut demander. Une liste vide rejette tout paramètre 'resource' avec 'invalid_target'.`,
         descDefaultAud: `Audiences toujours ajoutées aux jetons de ce client, indépendamment de tout paramètre 'resource'.`,
+        descRefreshMaxAge: `Âge maximal optionnel d'une connexion, en secondes. Les jetons de rafraîchissement cessent de fonctionner ce délai après la connexion de l'utilisateur, et aucun jeton ne le dépasse. Vide conserve la durée de vie glissante des jetons de rafraîchissement.`,
         backchannelLogout:
             'Si ce client prend en charge {{ OIDC_BCL }}, vous pouvez fournir l’URI ici.',
         branding: {

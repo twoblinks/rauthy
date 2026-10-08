@@ -61,6 +61,16 @@ pub async fn validate_auth_req_param(
     Ok((client, header))
 }
 
+/// Deletes the refresh token behind `validation_str`, if it still exists.
+async fn delete_refresh_token(validation_str: &str, is_device: bool) -> Result<(), ErrorResponse> {
+    if is_device && let Ok(Some(rt)) = RefreshTokenDevice::find_opt(validation_str).await {
+        rt.delete().await?;
+    } else if let Ok(Some(rt)) = RefreshToken::find_opt(validation_str).await {
+        rt.delete().await?;
+    }
+    Ok(())
+}
+
 pub async fn validate_and_refresh_token(
     client: Client,
     refresh_token: &str,
@@ -93,18 +103,18 @@ pub async fn validate_and_refresh_token(
     if client.id != claims.common.azp {
         // If this is a non-matching client.id, this is most probably a malicious request.
         // -> invalidate the refresh token immediately
-        if claims.common.did.is_some()
-            && let Ok(Some(rt)) = RefreshTokenDevice::find_opt(validation_str).await
-        {
-            rt.delete().await?;
-        } else if let Ok(Some(rt)) = RefreshToken::find_opt(validation_str).await {
-            rt.delete().await?;
-        };
+        delete_refresh_token(validation_str, claims.common.did.is_some()).await?;
 
         return Err(ErrorResponse::new(
             ErrorResponseType::Forbidden,
             "Mismatch in client.id",
         ));
+    }
+
+    // The login is older than the client allows: this refresh token can never be used again.
+    if let Err(err) = client.validate_refresh_max_age(claims.auth_time, Utc::now().timestamp()) {
+        delete_refresh_token(validation_str, claims.common.did.is_some()).await?;
+        return Err(err);
     }
 
     let header_origin = client.get_validated_origin_header(req)?;

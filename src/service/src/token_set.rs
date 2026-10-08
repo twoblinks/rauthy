@@ -23,6 +23,7 @@ use rauthy_jwt::token::{JwtHeaderType, JwtToken};
 use ring::digest;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
@@ -510,12 +511,15 @@ impl TokenSet {
             // allow 60 second early usage
             now.add(access_token_lifetime).sub(Duration::from_secs(60))
         };
-        let exp = if did.is_some() {
+        let mut exp = if did.is_some() {
             nbf.add(config.vars.device_grant.refresh_token_lifetime)
         } else {
             nbf.add(config.vars.lifetimes.refresh_token_lifetime)
         }
         .timestamp();
+        if let Some(until) = client.refresh_max_age_until(auth_time.get()) {
+            exp = min(exp, until);
+        }
 
         let token = {
             let jti = secure_random_alnum(8);
@@ -767,8 +771,9 @@ impl TokenSet {
         };
 
         // set the correct lifetime
-        let lifetime = if let Some(ts) = user.user_expires {
-            let now = Utc::now().timestamp();
+        let now = Utc::now().timestamp();
+        let mut lifetime = client.access_token_lifetime.unsigned_abs() as i64;
+        if let Some(ts) = user.user_expires {
             let diff = ts - now;
             if diff < 1 {
                 return Err(ErrorResponse::new(
@@ -776,12 +781,20 @@ impl TokenSet {
                     "User has expired",
                 ));
             }
-
-            let client_lt = client.access_token_lifetime.unsigned_abs() as i64;
-            if client_lt < diff { client_lt } else { diff }
-        } else {
-            client.access_token_lifetime.unsigned_abs() as i64
-        };
+            lifetime = min(lifetime, diff);
+        }
+        // no token may outlive the client's `refresh_max_age`
+        let max_age_until = client.refresh_max_age_until(auth_time.get());
+        if let Some(until) = max_age_until {
+            let diff = until - now;
+            if diff < 1 {
+                return Err(ErrorResponse::new(
+                    ErrorResponseType::InvalidGrant,
+                    "The login is older than the 'refresh_max_age' of this client",
+                ));
+            }
+            lifetime = min(lifetime, diff);
+        }
 
         let token_type = if dpop_fingerprint.is_some() {
             JwtTokenType::DPoP
@@ -821,7 +834,10 @@ impl TokenSet {
         )
         .await?;
         let scope = scope.into_owned();
-        let refresh_token = if client.allow_refresh_token() {
+        // A refresh token is useless if the access token already lasts until the max age.
+        let refresh_token = if client.allow_refresh_token()
+            && max_age_until.is_none_or(|until| until > now + lifetime)
+        {
             Some(
                 Self::build_refresh_token(
                     user,
@@ -846,7 +862,7 @@ impl TokenSet {
             access_token,
             token_type,
             id_token: Some(id_token),
-            expires_in: client.access_token_lifetime,
+            expires_in: lifetime as i32,
             refresh_token,
             scope: Some(scope),
         })

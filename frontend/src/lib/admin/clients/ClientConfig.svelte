@@ -108,6 +108,7 @@
     let accessTokenAlg: JwkKeyPairAlg = $state(client.access_token_alg);
     let idTokenAlg: JwkKeyPairAlg = $state(client.id_token_alg);
     let tokenLifetime: string = $state(client.access_token_lifetime.toString());
+    let refreshMaxAge: string = $state(client.refresh_max_age?.toString() || '');
     let authCodeLifetime: string = $state(client.auth_code_lifetime.toString());
 
     let scopes: SelectItem[] = $state(
@@ -170,6 +171,7 @@
             accessTokenAlg = client.access_token_alg;
             idTokenAlg = client.id_token_alg;
             tokenLifetime = client.access_token_lifetime.toString();
+            refreshMaxAge = client.refresh_max_age?.toString() || '';
             authCodeLifetime = client.auth_code_lifetime.toString();
 
             scopes = scopesAll.map(name => {
@@ -258,6 +260,7 @@
             claims_at_root: claimsAtRoot,
             allowed_resources: allowedResources.length > 0 ? allowedResources : undefined,
             default_aud: defaultAud.length > 0 ? defaultAud : undefined,
+            refresh_max_age: refreshMaxAge ? Number.parseInt(refreshMaxAge) : undefined,
         };
 
         if (flows.authorizationCode) {
@@ -487,6 +490,20 @@
             min="10"
             max="86400"
             errMsg="10 <= Token Lifetime <= 86400"
+        />
+
+        <div style:height=".5rem"></div>
+        <p>{ta.clients.descRefreshMaxAge}</p>
+        <Input
+            typ="number"
+            bind:value={refreshMaxAge}
+            autocomplete="off"
+            label="Refresh Max Age"
+            placeholder="Refresh Max Age"
+            width={inputWidth}
+            min="60"
+            max="31536000"
+            errMsg="60 <= Refresh Max Age <= 31536000"
         />
 
         <div style:height=".5rem"></div>

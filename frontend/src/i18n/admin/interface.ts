@@ -62,6 +62,7 @@ export interface I18nAdmin {
         defaultAud: string;
         descAllowedResources: string;
         descDefaultAud: string;
+        descRefreshMaxAge: string;
         descGroupPrefix: string;
         descName: string;
         descOrigin: string;

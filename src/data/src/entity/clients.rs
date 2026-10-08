@@ -47,8 +47,8 @@ SET name = $1, enabled = $2, confidential = $3, secret = $4, secret_kid = $5, re
     id_token_alg = $11, auth_code_lifetime = $12, access_token_lifetime = $13, scopes = $14,
     default_scopes = $15, challenge = $16, force_mfa= $17, client_uri = $18, contacts = $19,
     backchannel_logout_uri = $20, restrict_group_prefix = $21, claims = $22,
-    claims_at_root = $23, allowed_resources = $24, default_aud = $25
-WHERE id = $26"#;
+    claims_at_root = $23, allowed_resources = $24, default_aud = $25, refresh_max_age = $26
+WHERE id = $27"#;
 
 /**
 # OIDC Client
@@ -98,6 +98,10 @@ pub struct Client {
     pub allowed_resources: Option<String>,
     /// Audiences always added to this client's tokens, independent of any request (CSV).
     pub default_aud: Option<String>,
+    /// Maximum age in seconds of a refresh token chain, measured from the `auth_time` of the
+    /// login it started with. A refresh after that is rejected, and no token issued for this
+    /// client expires later. `None` keeps the sliding refresh token lifetime.
+    pub refresh_max_age: Option<i32>,
 }
 
 impl Debug for Client {
@@ -109,8 +113,8 @@ impl Debug for Client {
         flows_enabled: {}, access_token_alg: {}, id_token_alg: {}, auth_code_lifetime: {}, \
         access_token_lifetime: {}, scopes: {}, default_scopes: {}, challenge: {:?}, force_mfa: {}, \
         client_uri: {:?}, contacts: {:?}, backchannel_logout_uri: {:?}, restrict_group_prefix: {:?}, \
-        claims: {:?}, claims_at_root: {}, allowed_resources: {:?}, default_aud: {:?} \
-        }}",
+        claims: {:?}, claims_at_root: {}, allowed_resources: {:?}, default_aud: {:?}, \
+        refresh_max_age: {:?} }}",
             self.id,
             self.name,
             self.enabled,
@@ -135,6 +139,7 @@ impl Debug for Client {
             self.claims_at_root,
             self.allowed_resources,
             self.default_aud,
+            self.refresh_max_age,
         )
     }
 }
@@ -558,6 +563,7 @@ VALUES ($1, $2, $3, $4)"#;
                 self.claims_at_root,
                 allowed_resources,
                 default_aud,
+                self.refresh_max_age,
                 &self.id
             ),
         ));
@@ -609,6 +615,7 @@ VALUES ($1, $2, $3, $4)"#;
                 &self.claims_at_root,
                 &allowed_resources,
                 &default_aud,
+                &self.refresh_max_age,
                 &self.id,
             ],
         )
@@ -668,6 +675,7 @@ VALUES ($1, $2, $3, $4)"#;
                         self.claims_at_root,
                         allowed_resources,
                         default_aud,
+                        self.refresh_max_age,
                         self.id.clone()
                     ),
                 )
@@ -701,6 +709,7 @@ VALUES ($1, $2, $3, $4)"#;
                     &self.claims_at_root,
                     &allowed_resources,
                     &default_aud,
+                    &self.refresh_max_age,
                     &self.id,
                 ],
             )
@@ -893,6 +902,34 @@ WHERE id = $4"#;
 impl Client {
     pub fn allow_refresh_token(&self) -> bool {
         self.is_flow_enabled(GrantType::RefreshToken)
+    }
+
+    /// The unix timestamp after which no token for a login at `auth_time` may be valid, if
+    /// this client has a `refresh_max_age`.
+    #[inline]
+    pub fn refresh_max_age_until(&self, auth_time: i64) -> Option<i64> {
+        self.refresh_max_age
+            .map(|max_age| auth_time.saturating_add(i64::from(max_age)))
+    }
+
+    /// Rejects a refresh for a login that is older than this client's `refresh_max_age`.
+    /// Refresh tokens from older Rauthy versions may not carry an `auth_time`. They cannot be
+    /// checked and are rejected as well, which only forces a new login.
+    pub fn validate_refresh_max_age(
+        &self,
+        auth_time: Option<i64>,
+        now: i64,
+    ) -> Result<(), ErrorResponse> {
+        if self.refresh_max_age.is_none() {
+            return Ok(());
+        }
+        match auth_time.and_then(|ts| self.refresh_max_age_until(ts)) {
+            Some(until) if now < until => Ok(()),
+            _ => Err(ErrorResponse::new(
+                ErrorResponseType::InvalidGrant,
+                "The login is older than the 'refresh_max_age' of this client",
+            )),
+        }
     }
 
     // TODO make a generic 'delete_from_csv' function out of this and re-use it in some other places
@@ -1871,6 +1908,7 @@ impl Client {
             claims_at_root: self.claims_at_root,
             allowed_resources,
             default_aud,
+            refresh_max_age: self.refresh_max_age,
             scim: scim.map(|scim| ScimClientRequestResponse {
                 bearer_token: scim.bearer_token,
                 base_uri: scim.base_uri,
@@ -1960,6 +1998,7 @@ impl Client {
             claims_at_root: false,
             allowed_resources: value.allowed_resources.map(|r| r.join(",")),
             default_aud: None,
+            refresh_max_age: None,
         })
     }
 }
@@ -2003,6 +2042,7 @@ impl Default for Client {
             claims_at_root: false,
             allowed_resources: None,
             default_aud: None,
+            refresh_max_age: None,
         }
     }
 }
@@ -2074,6 +2114,7 @@ impl Client {
         self.claims_at_root = current.claims_at_root;
         self.allowed_resources = current.allowed_resources;
         self.default_aud = current.default_aud;
+        self.refresh_max_age = current.refresh_max_age;
     }
 
     /// RFC 7592 self-update: the client may keep or narrow its grant types, but not add one
@@ -2320,6 +2361,45 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_refresh_max_age() {
+        let mut client = Client::default();
+        let now = 1_700_000_000;
+
+        // without a max age, every refresh is allowed, even without `auth_time`
+        assert_eq!(client.refresh_max_age_until(now), None);
+        assert!(client.validate_refresh_max_age(None, now).is_ok());
+        assert!(client.validate_refresh_max_age(Some(0), now).is_ok());
+
+        client.refresh_max_age = Some(72_000);
+        assert_eq!(client.refresh_max_age_until(now), Some(now + 72_000));
+
+        // within the max age
+        assert!(client.validate_refresh_max_age(Some(now), now).is_ok());
+        assert!(
+            client
+                .validate_refresh_max_age(Some(now - 71_999), now)
+                .is_ok()
+        );
+
+        // at and after the max age
+        let err = client
+            .validate_refresh_max_age(Some(now - 72_000), now)
+            .unwrap_err();
+        assert_eq!(err.error, ErrorResponseType::InvalidGrant);
+        assert!(
+            client
+                .validate_refresh_max_age(Some(now - 100_000), now)
+                .is_err()
+        );
+
+        // an older refresh token without `auth_time` cannot be checked
+        assert!(client.validate_refresh_max_age(None, now).is_err());
+
+        // no overflow for absurd values
+        assert_eq!(client.refresh_max_age_until(i64::MAX), Some(i64::MAX));
+    }
+
+    #[test]
     fn test_validate_dyn_redirect_uri() {
         // https allowed
         assert!(validate_dyn_client_redirect_uri("https://app.example.com/cb").is_ok());
@@ -2528,6 +2608,7 @@ pub(crate) mod tests {
             claims_at_root: false,
             allowed_resources: None,
             default_aud: None,
+            refresh_max_age: None,
         };
 
         assert_eq!(client.get_access_token_alg().unwrap(), JwkKeyPairAlg::EdDSA);
@@ -2991,6 +3072,7 @@ pub(crate) mod tests {
             claims_at_root: false,
             allowed_resources: None,
             default_aud: None,
+            refresh_max_age: None,
         }
     }
 
@@ -3147,6 +3229,7 @@ pub(crate) mod tests {
             claims_at_root: true,
             allowed_resources: Some("https://api.example.com".to_string()),
             default_aud: Some("https://aud.example.com".to_string()),
+            refresh_max_age: None,
         }
     }
 

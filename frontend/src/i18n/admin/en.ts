@@ -41,6 +41,7 @@ export let I18nAdminEn: I18nAdmin = {
         defaultAud: 'Default Audiences',
         descAllowedResources: `Optional RFC 8707 resource indicators this client may request. An empty list rejects any 'resource' request parameter with 'invalid_target'.`,
         descDefaultAud: `Audiences that are always added to this client's tokens, independent of any 'resource' request parameter.`,
+        descRefreshMaxAge: `Optional maximum age of a login in seconds. Refresh tokens stop working this long after the user logged in, and no token outlives it. Empty keeps the sliding refresh token lifetime.`,
         backchannelLogout: 'If this client supports {{ OIDC_BCL }}, you can provide the URI here.',
         branding: {
             descHsl: `The following values must be given as HSL values. You only provide the base colors.

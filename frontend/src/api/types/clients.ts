@@ -76,6 +76,9 @@ export interface UpdateClientRequest {
     /// Audiences always added to this client's tokens, independent of any request.
     /// Validation: PATTERN_URI
     default_aud?: string[];
+    /// Maximum age of a login in seconds, measured from its `auth_time`.
+    /// Validation: `60 <= refresh_max_age <= 31536000`
+    refresh_max_age?: number;
     scim?: ScimClientRequestResponse;
 }
 
@@ -109,6 +112,7 @@ export interface ClientResponse {
     claims_at_root: boolean;
     allowed_resources?: string[];
     default_aud?: string[];
+    refresh_max_age?: number;
     scim?: ScimClientRequestResponse;
 }
 
